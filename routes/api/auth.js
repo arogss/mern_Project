@@ -124,6 +124,7 @@ router.put('/:id', async (req, res) => {
         await taskup.save();
 
         res.send('User updated');
+        window.alert("User updated")
     } catch (err) {
         console.log(err.message);
         res.status(500).send('Server error');

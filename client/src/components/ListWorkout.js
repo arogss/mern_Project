@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Link } from 'react-router-dom';
+import jwt_decode from 'jwt-decode'
 import axios from 'axios';
 
 const Workout = props => (
@@ -21,10 +22,29 @@ export default class ListWorkout extends Component {
 
         this.deleteWorkout = this.deleteWorkout.bind(this)
 
-        this.state = { workouts: [] };
+        this.state = {
+            workouts: [],
+            fullname: '',
+            email: '',
+            errors: {}
+        };
+    }
+
+    componentWillMount(){
+        if(localStorage.usertoken == null){
+            window.location = "/login"
+        }
     }
 
     componentDidMount() {
+        const token = localStorage.usertoken
+        console.log(token)
+        const decoded = jwt_decode(token)
+        this.setState({
+            fullname: decoded.fullname,
+            email: decoded.email
+        })
+
         axios.get('http://localhost:5000/api/workouts/')
             .then(response => {
                 this.setState({ workouts: response.data })
@@ -70,5 +90,6 @@ export default class ListWorkout extends Component {
                 </table>
             </div>
         )
+
     }
 }

@@ -24,6 +24,12 @@ export default class EditWorkout extends Component {
         }
     }
 
+    componentWillMount(){
+        if(localStorage.usertoken == null){
+            window.location = "/login"
+        }
+    }
+
     componentDidMount() {
         axios.get('http://localhost:5000/api/workouts/' + this.props.match.params.id)
             .then(response => {
@@ -97,9 +103,9 @@ export default class EditWorkout extends Component {
         console.log(workout);
 
         axios.put('http://localhost:5000/api/workouts/' + this.props.match.params.id, workout)
-            .then(res => console.log(res.data));
+            .then(res => window.alert(res.data));
 
-        window.location = '/';
+        window.location = '/listworkout';
     }
 
     render() {

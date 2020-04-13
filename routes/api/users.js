@@ -1,152 +1,120 @@
-const express = require('express');
-const router = express.Router();
+const express = require('express')
+const users = express.Router()
 const uuidv4 = require('uuid/v4');
-const bcrypt = require('bcryptjs')
 const config = require('config')
 const jwt = require('jsonwebtoken')
-
+const bcrypt = require('bcrypt')
 const { check, validationResult } = require('express-validator');
 
-//user model
-let User = require('../../models/User');
+const User = require('../../models/User')
 
-//route Get api/users
-//desc Get all user
-//access public
-router.get('/', async (req, res) => {
+process.env.SECRET_KEY = 'secret'
+
+users.post('/register', [
+  check('fullname', 'Name is required')
+    .not()
+    .isEmpty(),
+  check('email', 'Please enter valid email').isEmail(),
+  check('password', 'please enter password with 3 or more').isLength({
+    min: 3
+  })
+],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ errors: errors.array() });
+    }
+
     try {
-        const UserDb = await User.find();
-        res.send(UserDb);
-    } catch (err) {
-        res.status(500).send('Server error');
-    }
-});
+      //check if user email is already in the database
+      let user1 = await User.findOne({ email: req.body.email });
+      if (user1) {
+        return res.status(400).json({ error: [{ msg: 'user already exits' }] });
+      }
 
-//route Get api/users/:id
-//desc Get user by id
-//access public
-router.get('/:id', async (req, res) => {
-    try {
-        const user = await User.findOne(req.params._id);
-        if (!user) {
-            return res.status(404).send('user not found');
+      //create a user
+      const newUser = new User({
+        fullname: req.body.fullname,
+        email: req.body.email,
+        password: req.body.password
+      });
+
+      //hash the password
+      const salt = await bcrypt.genSalt(10);
+      newUser.password = await bcrypt.hash(req.body.password, salt);
+      //save the user
+      await newUser.save();
+
+      //generate token
+      const payload = {
+        user: {
+          id: newUser.id,
+          name: newUser.name
         }
-        res.send(user);
-    } catch (err) {
-        res.status(500).send('Server error');
-    }
-});
+      };
 
-//route post api/users
-//desc insert user
-//access public
-router.post(
-    '/',
-    [
-        check('email', 'Email is required')
-            .not()
-            .isEmpty().isEmail(),
-        check('password', 'Password longer than 5 chars').isLength({
-            min: 5
-        }),
-        check('fullname', 'Fullname is required').not().isEmpty()
-    ],
-    async (req, res) => {
-        try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return res.status(422).json({ errors: errors.array() });
-            }
-            console.log(req.body);
-
-            User.findOne(req.body.email).then(user => {
-                if (user) {
-                    return res.status(400).json({ msg: 'User already exist' })
-                }
-
-                const newUser = new User({
-                    email: req.body.email,
-                    password: req.body.password,
-                    fullname: req.body.fullname
-                });
-
-                //create salt & hash
-                bcrypt.genSalt(10, (err, salt) => {
-                    bcrypt.hash(newUser.password, salt, (err, hash) => {
-                        if (err) throw err;
-
-                        newUser.password = hash;
-                        newUser.save().then(user => {
-
-                            jwt.sign(
-                                {
-                                    id: user.id
-                                },
-                                config.get(jwt),
-                                { expiresIn: 3600 },
-                                (err, token) => {
-                                    if (err) throw err
-
-                                    res.json({
-                                        token,
-                                        user: {
-                                            id: user.id,
-                                            name: user.name,
-                                            email: user.email
-                                        }
-                                    })
-                                }
-                            )
-                        })
-                    })
-                })
-
-            })
-        } catch (err) {
-            res.status(500).send('Server error');
+      jwt.sign(
+        payload,
+        config.get('jwtSecret'),
+        { expiresIn: 360000 },
+        (err, token) => {
+          if (err) throw err;
+          res.json({ token });
         }
+      );
+    } catch (err) {
+      res.status(500).send(err.message);
     }
+  }
 );
 
-//route delete api/users/:id
-//desc delete user by id
-//access public
-router.delete('/:id', async (req, res) => {
-    try {
-        // find the element
-        const user = await User.findOne({ username: req.params._id });
-        await user.remove()
 
-        res.json({ msg: 'User deleted' });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
-    }
-});
+users.post('/login', (req, res) => {
+  User.findOne({
+    email: req.body.email
+  })
+    .then(user => {
+      if (user) {
+        if (bcrypt.compareSync(req.body.password, user.password)) {
+          // Passwords match
+          const payload = {
+            _id: user._id,
+            fullname: user.fullname,
+            email: user.email
+          }
+          let token = jwt.sign(payload, process.env.SECRET_KEY, {
+            expiresIn: 360000
+          })
+          res.send(token)
+        } else {
+          // Passwords don't match
+          res.json({ error: 'User does not exist' })
+        }
+      } else {
+        res.json({ error: 'User does not exist' })
+      }
+    })
+    .catch(err => {
+      res.send('error: ' + err)
+    })
+})
 
-//route put  api/users/
-//desc update user
-//access public
-router.put('/:id', async (req, res) => {
-    try {
-        const taskup = await User.findOne(req.body._id);
+users.get('/profile', (req, res) => {
+  var decoded = jwt.verify(req.headers['authorization'], process.env.SECRET_KEY)
 
-        taskup.email = req.body.email;
-        taskup.password = req.body.password;
-        taskup.fullname = req.body.fullname;
-        await taskup.save();
+  User.findOne({
+    _id: decoded._id
+  })
+    .then(user => {
+      if (user) {
+        res.json(user)
+      } else {
+        res.send('User does not exist')
+      }
+    })
+    .catch(err => {
+      res.send('error: ' + err)
+    })
+})
 
-        res.send('User updated');
-    } catch (err) {
-        console.log(err.message);
-        res.status(500).send('Server error');
-    }
-});
-
-module.exports = router;
-
-
-
-
-
-
+module.exports = users

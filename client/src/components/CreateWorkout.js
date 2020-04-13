@@ -24,6 +24,12 @@ export default class CreateWorkout extends Component {
     }
   }
 
+  componentWillMount(){
+    if(localStorage.usertoken == null){
+        window.location = "/login"
+    }
+}
+
   componentDidMount() {
     axios.get('http://localhost:5000/api/clients/')
       .then(response => {
@@ -84,7 +90,7 @@ export default class CreateWorkout extends Component {
     console.log(workout);
 
     axios.post('http://localhost:5000/api/workouts', workout)
-      .then(res => console.log(res.data));
+      .then(res => window.alert(res.data));
 
     window.location = '/';
   }

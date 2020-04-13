@@ -13,6 +13,12 @@ export default class CreateClient extends Component {
     }
   }
 
+  componentWillMount() {
+    if (localStorage.usertoken == null) {
+      window.location = "/login"
+    }
+  }
+
   onChangeUsername(e) {
     this.setState({
       username: e.target.value
@@ -29,7 +35,7 @@ export default class CreateClient extends Component {
     console.log(client);
 
     axios.post('http://localhost:5000/api/clients', client)
-      .then(res => console.log(res.data));
+      .then(res => window.alert(res.data));
 
     this.setState({
       username: ''
@@ -41,14 +47,14 @@ export default class CreateClient extends Component {
       <div>
         <h3>Create New Client</h3>
         <form onSubmit={this.onSubmit}>
-          <div className="form-group"> 
+          <div className="form-group">
             <label>Client Name: </label>
-            <input  type="text"
-                required
-                className="form-control"
-                value={this.state.username}
-                onChange={this.onChangeUsername}
-                />
+            <input type="text"
+              required
+              className="form-control"
+              value={this.state.username}
+              onChange={this.onChangeUsername}
+            />
           </div>
           <div className="form-group">
             <input type="submit" value="Create Client" className="btn btn-primary" />
